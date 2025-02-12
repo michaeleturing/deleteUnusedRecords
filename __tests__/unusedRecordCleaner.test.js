@@ -5,15 +5,6 @@
  * ensuring we can achieve high code coverage (90%+). Run these tests in your local environment
  * or CI pipeline configured for SuiteScript testing.
  *
- * Error Conditions Tested:
- *   - Query errors
- *   - Record deletion errors
- *   - Audit creation errors
- *   - No records found scenario
- *
- * Pass/Fail Criteria:
- *   - All Jest tests pass (green).
- *   - The script handles each scenario gracefully.
  */
 
 import {
@@ -78,6 +69,29 @@ describe('unusedRecordCleaner Tests', () => {
     jest.clearAllMocks()
   })
 
+  /**
+   * Test Name: Should handle no records found scenario
+   *
+   * @async
+   * @description
+   *  Tests the handling of a situation where the SuiteQL query returns no rows.
+   *
+   * @param {Object} context - The input parameter for the execute function (unused in this test).
+   *
+   * Error Conditions:
+   *  - If the script does not properly handle empty query results.
+   *
+   * Acceptable Values or Ranges:
+   *  - The query may return an empty array of results.
+   *
+   * Premise and Assertions:
+   *  - Calls the `execute` function with an empty result set from SuiteQL.
+   *  - Expects an audit log entry indicating "No Unused Records".
+   *
+   * Pass/Fail Conditions:
+   *  - Passes if the log is called with the correct message.
+   *  - Fails if an error is thrown or if the audit log is not called as expected.
+   */
   test('Should handle no records found scenario', async () => {
     // Mock the SuiteQL result to have no rows
     mockQuery.runSuiteQL.promise.mockResolvedValue({
@@ -91,6 +105,30 @@ describe('unusedRecordCleaner Tests', () => {
     )
   })
 
+  /**
+   * Test Name: Should delete unused records and create audit entries
+   *
+   * @async
+   * @description
+   *  Tests the normal flow where unused records are found and deleted,
+   *  followed by creation of audit records.
+   *
+   * @param {Object} context - The input parameter for the execute function (unused in this test).
+   *
+   * Error Conditions:
+   *  - If deletion fails or audit record creation fails unexpectedly.
+   *
+   * Acceptable Values or Ranges:
+   *  - The query returns an array of objects each containing an 'id' and 'name'.
+   *
+   * Premise and Assertions:
+   *  - Calls the `execute` function with 2 records found by SuiteQL.
+   *  - Expects both records to be deleted and 2 corresponding audit records to be created.
+   *
+   * Pass/Fail Conditions:
+   *  - Passes if the records are deleted and the correct audit log is made.
+   *  - Fails if the deletion or audit creation does not happen as expected.
+   */
   test('Should delete unused records and create audit entries', async () => {
     // Mock the SuiteQL result with 2 records found
     mockQuery.runSuiteQL.promise.mockResolvedValue({
@@ -135,6 +173,29 @@ describe('unusedRecordCleaner Tests', () => {
     )
   })
 
+  /**
+   * Test Name: Should log query error and rethrow
+   *
+   * @async
+   * @description
+   *  Tests handling of errors that occur when the SuiteQL query fails.
+   *
+   * @param {Object} context - The input parameter for the execute function (unused in this test).
+   *
+   * Error Conditions:
+   *  - An exception thrown by runSuiteQL.promise.
+   *
+   * Acceptable Values or Ranges:
+   *  - runSuiteQL.promise rejects with an error.
+   *
+   * Premise and Assertions:
+   *  - Calls the `execute` function but the query fails.
+   *  - Expects the script to log the error and rethrow it.
+   *
+   * Pass/Fail Conditions:
+   *  - Passes if the error is logged and rethrown.
+   *  - Fails if the error is not handled correctly.
+   */
   test('Should log query error and rethrow', async () => {
     mockQuery.runSuiteQL.promise.mockRejectedValue(new Error('Query failed'))
 
@@ -147,9 +208,31 @@ describe('unusedRecordCleaner Tests', () => {
   })
 
   /**
-     *  NEW TESTS.
-     */
-
+   *  NEW TESTS.
+   */
+  /**
+   * Test Name: Should log deletion error and rethrow
+   *
+   * @async
+   * @description
+   *  Tests the scenario where record deletion fails, ensuring the script logs and rethrows the error.
+   *
+   * @param {Object} context - The input parameter for the execute function (unused in this test).
+   *
+   * Error Conditions:
+   *  - Deletion failure from record.delete.promise.
+   *
+   * Acceptable Values or Ranges:
+   *  - runSuiteQL.promise resolves with at least one result; record.delete.promise rejects with an error.
+   *
+   * Premise and Assertions:
+   *  - Calls the `execute` function with a valid record query result.
+   *  - Expects the record deletion to fail and the script to handle it properly.
+   *
+   * Pass/Fail Conditions:
+   *  - Passes if the error is logged and rethrown.
+   *  - Fails if the error is not handled as expected.
+   */
   test('Should log deletion error and rethrow', async () => {
     // Provide one record from the query
     mockQuery.runSuiteQL.promise.mockResolvedValue({
@@ -167,6 +250,30 @@ describe('unusedRecordCleaner Tests', () => {
     )
   })
 
+  /**
+   * Test Name: Should log audit creation error and rethrow
+   *
+   * @async
+   * @description
+   *  Tests the scenario where creating the audit record fails, ensuring the script logs and rethrows the error.
+   *
+   * @param {Object} context - The input parameter for the execute function (unused in this test).
+   *
+   * Error Conditions:
+   *  - record.create.promise throws an error.
+   *
+   * Acceptable Values or Ranges:
+   *  - runSuiteQL.promise resolves with valid record results; record.delete.promise resolves;
+   *    record.create.promise throws an error.
+   *
+   * Premise and Assertions:
+   *  - Calls `execute` after successfully deleting a record.
+   *  - Expects the creation of the audit record to fail and the script to handle it properly.
+   *
+   * Pass/Fail Conditions:
+   *  - Passes if the error is logged and rethrown.
+   *  - Fails if the error is not handled correctly.
+   */
   test('Should log audit creation error and rethrow', async () => {
     // Provide one record from the query
     mockQuery.runSuiteQL.promise.mockResolvedValue({
