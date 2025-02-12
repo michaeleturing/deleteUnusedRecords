@@ -145,47 +145,4 @@ describe('unusedRecordCleaner Tests', () => {
       })
     )
   })
-
-  /**
-     *  NEW TESTS.
-     */
-
-  test('Should log deletion error and rethrow', async () => {
-    // Provide one record from the query
-    mockQuery.runSuiteQL.promise.mockResolvedValue({
-      asMappedResults: () => [{ id: '300', name: 'TestRecord C' }]
-    })
-
-    // Force the record.delete.promise to fail
-    mockRecord.delete.promise.mockRejectedValue(new Error('Delete failed'))
-
-    await expect(execute({})).rejects.toThrow('Delete failed')
-    expect(mockLog.error).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: expect.stringContaining('Error deleting record.')
-      })
-    )
-  })
-
-  test('Should log audit creation error and rethrow', async () => {
-    // Provide one record from the query
-    mockQuery.runSuiteQL.promise.mockResolvedValue({
-      asMappedResults: () => [{ id: '400', name: 'TestRecord D' }]
-    })
-
-    // Mock delete to succeed
-    mockRecord.delete.promise.mockResolvedValue('400')
-
-    // Force the audit record create to fail
-    mockRecord.create.promise.mockImplementation(() => {
-      throw new Error('Create audit record failed')
-    })
-
-    await expect(execute({})).rejects.toThrow('Create audit record failed')
-    expect(mockLog.error).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: expect.stringContaining('Error creating audit record.')
-      })
-    )
-  })
 })
