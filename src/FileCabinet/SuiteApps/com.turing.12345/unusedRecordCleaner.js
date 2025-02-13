@@ -1,278 +1,221 @@
 /**
  * @NApiVersion 2.1
  * @NScriptType ScheduledScript
- *
- * @description A SuiteScript 2.1 Scheduled Script that:
- *              1) Identify unused custom records.
- *              2) Check dependencies before deleting.
- *              3) Maintain an audit trail of all deleted records.
- *
- * @module unusedRecordCleaner
- *
- * @example
- *   1. Deploy this script as a Scheduled Script.
- *   2. Configure any necessary script parameters (e.g., the custom record type to clean).
- *   3. Schedule or manually run the script.
- *
- * Error Conditions:
- *   - Permission errors when deleting records or creating audit records.
- *   - Query exceptions.
- *   - Record load/delete errors due to invalid or missing internal IDs.
- *
- * Acceptable Values / Ranges:
- *   - Script parameter for custom record type must be a valid record type script id.
- *   - Query results must not exceed governor limits (this example uses simple batch approach).
- *
- * Parameters:
- *   - none in this generic example, but you may add a parameter for the record type if needed.
- *
- * Premise and Assertions:
- *   - The script queries custom records using N/query.runSuiteQL.
- *   - If a record has dependencies, it is skipped.
- *   - For each deleted record, an audit entry is created in a hypothetical custom record type
- *     named 'customrecord_deletion_audit'.
- *   - The script uses Promise-based Record APIs to conform with best practices.
- *
- * Pass/Fail Conditions:
- *   - Pass: All unused records are successfully deleted, and audit entries are created.
- *   - Fail: Any unhandled error occurs, or if records fail to delete unexpectedly.
  */
+define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, record, translation) {
 
-import log from 'N/log';
-import query from 'N/query';
-import record from 'N/record';
-import translation from 'N/translation';
-
-/* =======================
- * Model
- * =======================
- * This model handles data operations:
- * 1) Fetch all candidate records for deletion.
- * 2) Check if the candidate record has dependencies.
- * 3) Delete the record and record an audit entry.
- */
-const UnusedRecordModel = {
-
-  /**
-   * Fetch a list of unused custom records by running a SuiteQL query.
-   * In a real-world scenario, you'd join to other tables to confirm zero references.
-   * For demonstration, we simply return all customrecord_mycustomrecord where no references exist.
-   *
-   * @async
-   * @returns {Promise<Array<Object>>} Array of objects containing record internal IDs and other fields
-   *
-   * Example Return Value:
-   * [
-   *   { id: '123', name: 'Record A' },
-   *   { id: '456', name: 'Record B' }
-   * ]
-   */
-  async fetchUnusedRecords() {
-    // Example query: Adjust for actual references / join conditions
-    const suiteQL = `
-      SELECT
-        id,
-        name
-      FROM
-        customrecord_mycustomrecord
-      WHERE
-        -- For example, no references in hypothetical referencingTable
-        id NOT IN (
-          SELECT DISTINCT customRecordRef
-          FROM referencingTable
-          WHERE customRecordRef IS NOT NULL
-        )
-    `;
-
-    try {
-      const results = await query.runSuiteQL.promise({ query: suiteQL });
-      const records = [];
-      if (results && results.asMappedResults().length > 0) {
-        results.asMappedResults().forEach((row) => {
-          records.push({
-            id: row.id,
-            name: row.name
+  const UnusedRecordModel = {
+    /**
+     * Fetches unused records from the custom record type.
+     *
+     * @async
+     * @function fetchUnusedRecords
+     * @returns {Promise<Array<Object>>} Resolves with an array of record objects,
+     *    each containing:
+     *      - id {string|number}: The record identifier.
+     *      - name {string}: The record name.
+     *
+     * @throws {Error} Throws an error if the SuiteQL query fails.
+     *
+     * Acceptable values: Records must have valid id and name properties.
+     * Premise: Selects records that are not referenced in another table.
+     * Assertions: Returns an empty array if no records are found.
+     * Pass: Returns a correctly formatted array; Fail: Error is thrown with a proper log.
+     */
+    async fetchUnusedRecords() {
+      const suiteQL = `
+        SELECT
+          id,
+          name
+        FROM
+          customrecord_mycustomrecord
+        WHERE
+          id NOT IN (
+            SELECT DISTINCT customRecordRef
+            FROM referencingTable
+            WHERE customRecordRef IS NOT NULL
+          )
+      `;
+      try {
+        const results = await query.runSuiteQL.promise({ query: suiteQL });
+        const recordsArr = [];
+        if (results && results.asMappedResults().length > 0) {
+          results.asMappedResults().forEach((row) => {
+            recordsArr.push({ id: row.id, name: row.name });
           });
+        }
+        return recordsArr;
+      } catch (e) {
+        const errorMsg = translation.get({ collection: 'unusedRecordCleaner', key: 'query_error' }) || 'Error fetching unused records.';
+        log.error({ title: errorMsg, details: e.message });
+        throw e;
+      }
+    },
+
+    /**
+     * Checks for dependencies on a given record.
+     *
+     * @async
+     * @function hasDependencies
+     * @param {Object} candidate - The record candidate (currently unused).
+     * @returns {Promise<boolean>} Resolves with false as this is a stub implementation.
+     *
+     * Note: This function currently always returns false.
+     * Pass: Always returns false; Fail: Behavior is changed or an error is thrown.
+     */
+    async hasDependencies() {
+      return false;
+    },
+
+    /**
+     * Deletes the provided record from NetSuite.
+     *
+     * @async
+     * @function deleteRecord
+     * @param {Object} recordData - The record data object.
+     * @param {string|number} recordData.id - The unique identifier of the record to delete.
+     *
+     * @throws {Error} Throws an error if deletion fails.
+     *
+     * Acceptable values: recordData.id must be valid.
+     * Premise: Deletes a record of type 'customrecord_mycustomrecord'.
+     * Assertions: On success, an audit log is recorded.
+     * Pass: Successful deletion logs an audit; Fail: An error is logged and thrown.
+     */
+    async deleteRecord(recordData) {
+      try {
+        await record.delete.promise({ type: 'customrecord_mycustomrecord', id: recordData.id });
+        log.audit({
+          title: 'Record Deleted',
+          details: `Record ID: ${recordData.id}`
         });
+      } catch (e) {
+        const errorMsg = translation.get({ collection: 'unusedRecordCleaner', key: 'delete_error' }) || 'Error deleting record.';
+        log.error({ title: errorMsg, details: e.message });
+        throw e;
       }
-      return records;
-    } catch (e) {
-      // Using translation for error message, fallback to raw string if translation not found
-      const errorMsg = translation.get({
-        collection: 'unusedRecordCleaner',
-        key: 'query_error'
-      }) || 'Error fetching unused records.';
-      log.error({ title: errorMsg, details: e.message });
-      throw e;
-    }
-  },
+    },
 
-  /**
-   * Check if record has external dependencies. This is a placeholder function that
-   * returns false in this demonstration. You could run additional queries or logic here.
-   *
-   * @async
-   * @param {Object} recordData - Object containing record details
-   * @param {string} recordData.id - Internal ID of the record
-   * @returns {Promise<boolean>} Indicates if the record has dependencies
-   */
-  async hasDependencies(recordData) {
-    // Implement additional queries or checks if needed.
-    // Return false for demonstration (no dependencies).
-    return false;
-  },
-
-  /**
-   * Delete the record using promise-based API.
-   *
-   * @async
-   * @param {Object} recordData - The record object
-   * @param {string} recordData.id - Internal ID of the record to delete
-   * @returns {Promise<void>}
-   */
-  async deleteRecord(recordData) {
-    try {
-      await record.delete.promise({
-        type: 'customrecord_mycustomrecord',
-        id: recordData.id
-      });
-      log.audit({
-        title: 'Record Deleted',
-        details: `Record ID: ${recordData.id}`
-      });
-    } catch (e) {
-      const errorMsg = translation.get({
-        collection: 'unusedRecordCleaner',
-        key: 'delete_error'
-      }) || 'Error deleting record.';
-      log.error({ title: errorMsg, details: e.message });
-      throw e;
-    }
-  },
-
-  /**
-   * Create an audit record for a deleted custom record using a hypothetical custom record type
-   * `customrecord_deletion_audit`.
-   *
-   * @async
-   * @param {Object} recordData - The record object
-   * @param {string} recordData.id - Internal ID of the deleted record
-   * @param {string} recordData.name - Name of the deleted record
-   * @returns {Promise<void>}
-   */
-  async createAuditRecord(recordData) {
-    try {
-      const newAuditRecord = await record.create.promise({
-        type: 'customrecord_deletion_audit'
-      });
-      await newAuditRecord.setValue.promise({
-        fieldId: 'custrecord_deleted_record_id',
-        value: recordData.id
-      });
-      await newAuditRecord.setValue.promise({
-        fieldId: 'custrecord_deleted_record_name',
-        value: recordData.name
-      });
-      // Additional fields can be added as needed, e.g. user, timestamp, reason, etc.
-
-      const savedId = await newAuditRecord.save.promise();
-      log.audit({
-        title: 'Audit Record Created',
-        details: `Audit Record ID: ${savedId}, Deleted Record ID: ${recordData.id}`
-      });
-    } catch (e) {
-      const errorMsg = translation.get({
-        collection: 'unusedRecordCleaner',
-        key: 'audit_error'
-      }) || 'Error creating audit record.';
-      log.error({ title: errorMsg, details: e.message });
-      throw e;
-    }
-  }
-};
-
-/* =======================
- * View
- * =======================
- * Since this script is scheduled (no real UI in NetSuite), the "View" is minimal.
- * We'll simply define a logger interface to unify logs or notifications if needed.
- * For demonstration, it uses N/log directly.
- */
-const UnusedRecordView = {
-  /**
-   * Log that no unused records were found.
-   */
-  logNoRecordsFound() {
-    log.audit({
-      title: 'No Unused Records',
-      details: 'No unused records found for deletion.'
-    });
-  },
-
-  /**
-   * Log that the process has completed with a success summary.
-   * @param {number} count - The number of records deleted
-   */
-  logCompletion(count) {
-    log.audit({
-      title: 'Unused Record Cleanup Complete',
-      details: `Total records deleted: ${count}`
-    });
-  }
-};
-
-/* =======================
- * Controller
- * =======================
- * Orchestrates the flow of the script: fetch data from the Model, apply logic, update the View.
- */
-const UnusedRecordController = {
-
-  /**
-   * Main method to orchestrate the record cleanup.
-   *
-   * @async
-   * @returns {Promise<void>}
-   */
-  async cleanupUnusedRecords() {
-    let deleteCount = 0;
-
-    // 1. Fetch candidate records
-    const candidates = await UnusedRecordModel.fetchUnusedRecords();
-    if (!candidates || candidates.length === 0) {
-      UnusedRecordView.logNoRecordsFound();
-      return;
-    }
-
-    // 2. Loop and check dependencies, then delete
-    for (const candidate of candidates) {
-      const hasDeps = await UnusedRecordModel.hasDependencies(candidate);
-      if (hasDeps) {
-        // If the record has dependencies, we skip it
-        continue;
+    /**
+     * Creates an audit record for the deletion of a record.
+     *
+     * @async
+     * @function createAuditRecord
+     * @param {Object} recordData - The data of the deleted record.
+     * @param {string|number} recordData.id - The unique identifier of the deleted record.
+     * @param {string} recordData.name - The name of the deleted record.
+     *
+     * @throws {Error} Throws an error if audit record creation fails.
+     *
+     * Acceptable values: recordData.id and recordData.name must be valid.
+     * Premise: Logs deletion activity in 'customrecord_deletion_audit'.
+     * Assertions: An audit log is made upon successful creation.
+     * Pass: Audit record is created and logged; Fail: Error is thrown and logged.
+     */
+    async createAuditRecord(recordData) {
+      try {
+        const newAuditRecord = await record.create.promise({ type: 'customrecord_deletion_audit' });
+        await newAuditRecord.setValue.promise({ fieldId: 'custrecord_deleted_record_id', value: recordData.id });
+        await newAuditRecord.setValue.promise({ fieldId: 'custrecord_deleted_record_name', value: recordData.name });
+        const savedId = await newAuditRecord.save.promise();
+        log.audit({
+          title: 'Audit Record Created',
+          details: `Audit Record ID: ${savedId}, Deleted Record ID: ${recordData.id}`
+        });
+      } catch (e) {
+        const errorMsg = translation.get({ collection: 'unusedRecordCleaner', key: 'audit_error' }) || 'Error creating audit record.';
+        log.error({ title: errorMsg, details: e.message });
+        throw e;
       }
-
-      // 3. Delete record
-      await UnusedRecordModel.deleteRecord(candidate);
-      deleteCount++;
-
-      // 4. Audit
-      await UnusedRecordModel.createAuditRecord(candidate);
     }
+  };
 
-    // 5. Log completion
-    UnusedRecordView.logCompletion(deleteCount);
+  const UnusedRecordView = {
+    /**
+     * Logs a message indicating that no unused records were found.
+     *
+     * @function logNoRecordsFound
+     * @returns {void}
+     *
+     * Premise: Used when the fetch returns an empty array.
+     * Assertions: Logs an audit message with the 'No Unused Records' title.
+     * Pass: Correct audit is logged; Fail: No log message is produced.
+     */
+    logNoRecordsFound() {
+      log.audit({
+        title: 'No Unused Records',
+        details: 'No unused records found for deletion.'
+      });
+    },
+
+    /**
+     * Logs a summary message after record cleanup.
+     *
+     * @function logCompletion
+     * @param {number} count - The number of records deleted (must be a non-negative integer).
+     * @returns {void}
+     *
+     * Premise: Provides a final summary after deletion.
+     * Assertions: Logs an audit message with the total deletion count.
+     * Pass: The audit message reflects the correct deletion count; Fail: The count is incorrect or not logged.
+     */
+    logCompletion(count) {
+      log.audit({
+        title: 'Unused Record Cleanup Complete',
+        details: `Total records deleted: ${count}`
+      });
+    }
+  };
+
+  const UnusedRecordController = {
+    /**
+     * Coordinates the cleanup of unused records.
+     *
+     * @async
+     * @function cleanupUnusedRecords
+     * @returns {Promise<void>} Resolves when the cleanup process is complete.
+     *
+     * Premise: Fetch unused records, check dependencies, delete records without dependencies, and create audit records.
+     * Assertions: Invokes view logging based on record availability and deletion actions.
+     * Pass: The process completes successfully with correct logging; Fail: Any error in deletion or audit creation is thrown.
+     */
+    async cleanupUnusedRecords() {
+      let deleteCount = 0;
+      const candidates = await UnusedRecordModel.fetchUnusedRecords();
+      if (!candidates || candidates.length === 0) {
+        UnusedRecordView.logNoRecordsFound();
+        return;
+      }
+      for (const candidate of candidates) {
+        const hasDeps = await UnusedRecordModel.hasDependencies(candidate);
+        if (hasDeps) continue;
+        await UnusedRecordModel.deleteRecord(candidate);
+        deleteCount++;
+        await UnusedRecordModel.createAuditRecord(candidate);
+      }
+      UnusedRecordView.logCompletion(deleteCount);
+    }
+  };
+
+  /**
+   * Scheduled script entry point for cleaning up unused records.
+   *
+   * @async
+   * @function execute
+   * @param {Object} context - The context provided by the NetSuite runtime (may contain script parameters, etc.).
+   * @returns {Promise<void>} Resolves when the cleanup process is complete.
+   *
+   * Premise: Initiates the unused record cleanup process.
+   * Assertions: Calls the cleanupUnusedRecords method.
+   * Pass: Cleanup completes successfully; Fail: Throws an error if any step fails.
+   */
+  async function execute(context) {
+    await UnusedRecordController.cleanupUnusedRecords();
   }
-};
 
-/**
- * Entrypoint for the Scheduled Script.
- *
- * @governance This script performs queries, deletes, and creates records. It must be mindful of usage limits.
- *
- * @param {Object} context - Script context object (ScheduledScriptTask)
- * @returns {Promise<void>}
- */
-export async function execute(context) {
-  await UnusedRecordController.cleanupUnusedRecords();
-}
+  const exportsObj = { execute };
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = exportsObj;
+  }
+  return exportsObj;
+});

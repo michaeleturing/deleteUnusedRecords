@@ -1,15 +1,15 @@
-import SuiteCloudJestUnitTestRunner from '@oracle/suitecloud-unit-testing/services/SuiteCloudJestUnitTestRunner.js' // Ensure the path includes the file extension if necessary
+const SuiteCloudJestUnitTestRunner = require('@oracle/suitecloud-unit-testing/services/SuiteCloudJestUnitTestRunner.js');
 
-export default {
+module.exports = {
   defaultProjectFolder: 'src',
   commands: {
     'project:deploy': {
       beforeExecuting: async (args) => {
         await SuiteCloudJestUnitTestRunner.run({
           // Jest configuration options.
-        })
-        return args
+        });
+        return args;
       }
     }
   }
-}
+};
