@@ -34,50 +34,41 @@ let execute
 
 beforeEach(() => {
   jest.clearAllMocks()
-  delete require.cache[require.resolve('../src/FileCabinet/SuiteApps/com.turing.12345/unusedRecordCleaner.js')];
-  ({ execute } = require('../src/FileCabinet/SuiteApps/com.turing.12345/unusedRecordCleaner.js'))
+  delete require.cache[
+    require.resolve(
+      '../src/FileCabinet/SuiteApps/com.turing.12345/unusedRecordCleaner.js'
+    )
+    ];
+  ({ execute } = require(
+    '../src/FileCabinet/SuiteApps/com.turing.12345/unusedRecordCleaner.js'
+  ))
 })
 
-/**
- * Test suite for the unusedRecordCleaner module.
- *
- * Premise: Validates that unused records are properly fetched, deleted, and audited.
- * Assertions: Each test verifies correct logging and error handling.
- */
 describe('unusedRecordCleaner Tests', () => {
   const mockLog = require('N/log')
   const mockQuery = require('N/query')
   const mockRecord = require('N/record')
 
-  /**
-   * Test Case: No Records Found Scenario
-   *
-   * Premise: When the SuiteQL query returns an empty array.
-   * Assertions: Expects an audit log stating "No Unused Records" was logged.
-   * Pass: The audit log is correctly called.
-   * Fail: The audit log is missing or incorrect.
-   */
   test('Should handle no records found scenario', async () => {
-    mockQuery.runSuiteQL.promise.mockResolvedValue({ asMappedResults: () => [] })
+    mockQuery.runSuiteQL.promise.mockResolvedValue({
+      asMappedResults: () => []
+    })
     await execute({})
     expect(mockLog.audit).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'No Unused Records' })
     )
   })
 
-  /**
-   * Test Case: Delete Records and Create Audit Entries
-   *
-   * Premise: When unused records are found, they should be deleted and audit entries created.
-   * Assertions: Expects the deletion and audit creation functions to be called the correct number of times.
-   * Pass: Both deletion and audit functions are invoked and the final audit summary is logged.
-   * Fail: Either deletion or audit creation does not occur as expected.
-   */
   test('Should delete unused records and create audit entries', async () => {
     mockQuery.runSuiteQL.promise.mockResolvedValue({
-      asMappedResults: () => [{ id: '100', name: 'TestRecord A' }, { id: '200', name: 'TestRecord B' }]
+      asMappedResults: () => [
+        { id: '100', name: 'TestRecord A' },
+        { id: '200', name: 'TestRecord B' }
+      ]
     })
-    mockRecord.delete.promise.mockResolvedValueOnce('100').mockResolvedValueOnce('200')
+    mockRecord.delete.promise
+      .mockResolvedValueOnce('100')
+      .mockResolvedValueOnce('200')
     const mockCreate = {
       setValue: { promise: jest.fn() },
       save: { promise: jest.fn().mockResolvedValue('999') }
@@ -92,14 +83,6 @@ describe('unusedRecordCleaner Tests', () => {
     )
   })
 
-  /**
-   * Test Case: Query Error Handling
-   *
-   * Premise: When the SuiteQL query fails.
-   * Assertions: Expects an error to be thrown and the error log to capture the query error.
-   * Pass: The error is correctly thrown and logged.
-   * Fail: The error is not thrown or is logged incorrectly.
-   */
   test('Should log query error and rethrow', async () => {
     mockQuery.runSuiteQL.promise.mockRejectedValue(new Error('Query failed'))
     await expect(execute({})).rejects.toThrow('Query failed')
@@ -110,17 +93,6 @@ describe('unusedRecordCleaner Tests', () => {
     )
   })
 
-  /**
-*  NEW TESTS.
-  */
-  /**
-   * Test Case: Deletion Error Handling
-   *
-   * Premise: When deletion of a record fails.
-   * Assertions: Expects an error to be thrown and the deletion error to be logged.
-   * Pass: The error is thrown with the correct message and logged accordingly.
-   * Fail: The error is not handled or logged correctly.
-   */
   test('Should log deletion error and rethrow', async () => {
     mockQuery.runSuiteQL.promise.mockResolvedValue({
       asMappedResults: () => [{ id: '300', name: 'TestRecord C' }]
@@ -134,14 +106,6 @@ describe('unusedRecordCleaner Tests', () => {
     )
   })
 
-  /**
-   * Test Case: Audit Record Creation Error Handling
-   *
-   * Premise: When the creation of an audit record fails.
-   * Assertions: Expects an error to be thrown and the audit creation error to be logged.
-   * Pass: The error is thrown and logged as expected.
-   * Fail: The error is either not thrown or logged incorrectly.
-   */
   test('Should log audit creation error and rethrow', async () => {
     mockQuery.runSuiteQL.promise.mockResolvedValue({
       asMappedResults: () => [{ id: '400', name: 'TestRecord D' }]
