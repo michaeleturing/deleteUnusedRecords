@@ -2,7 +2,8 @@
   "name": "suitecloud-project",
   "version": "1.0.0",
   "scripts": {
-    "test": "jest --coverage"
+    "test": "jest --coverage",
+    "lint": "eslint . --fix"
   },
   "devDependencies": {
     "@oracle/suitecloud-unit-testing": "^1.6.0",

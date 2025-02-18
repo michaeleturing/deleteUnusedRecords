@@ -2,8 +2,7 @@
  * @NApiVersion 2.1
  * @NScriptType ScheduledScript
  */
-define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, record, translation) {
-
+define(['N/log', 'N/query', 'N/record', 'N/translation'], (log, query, record, translation) => {
   const UnusedRecordModel = {
     /**
      * Fetches unused records from the custom record type.
@@ -22,7 +21,7 @@ define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, 
      * Assertions: Returns an empty array if no records are found.
      * Pass: Returns a correctly formatted array; Fail: Error is thrown with a proper log.
      */
-    async fetchUnusedRecords() {
+    async fetchUnusedRecords () {
       const suiteQL = `
         SELECT
           id,
@@ -35,20 +34,20 @@ define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, 
             FROM referencingTable
             WHERE customRecordRef IS NOT NULL
           )
-      `;
+      `
       try {
-        const results = await query.runSuiteQL.promise({ query: suiteQL });
-        const recordsArr = [];
+        const results = await query.runSuiteQL.promise({ query: suiteQL })
+        const recordsArr = []
         if (results && results.asMappedResults().length > 0) {
           results.asMappedResults().forEach((row) => {
-            recordsArr.push({ id: row.id, name: row.name });
-          });
+            recordsArr.push({ id: row.id, name: row.name })
+          })
         }
-        return recordsArr;
+        return recordsArr
       } catch (e) {
-        const errorMsg = translation.get({ collection: 'unusedRecordCleaner', key: 'query_error' }) || 'Error fetching unused records.';
-        log.error({ title: errorMsg, details: e.message });
-        throw e;
+        const errorMsg = translation.get({ collection: 'unusedRecordCleaner', key: 'query_error' }) || 'Error fetching unused records.'
+        log.error({ title: errorMsg, details: e.message })
+        throw e
       }
     },
 
@@ -63,8 +62,8 @@ define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, 
      * Note: This function currently always returns false.
      * Pass: Always returns false; Fail: Behavior is changed or an error is thrown.
      */
-    async hasDependencies() {
-      return false;
+    async hasDependencies () {
+      return false
     },
 
     /**
@@ -82,17 +81,17 @@ define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, 
      * Assertions: On success, an audit log is recorded.
      * Pass: Successful deletion logs an audit; Fail: An error is logged and thrown.
      */
-    async deleteRecord(recordData) {
+    async deleteRecord (recordData) {
       try {
-        await record.delete.promise({ type: 'customrecord_mycustomrecord', id: recordData.id });
+        await record.delete.promise({ type: 'customrecord_mycustomrecord', id: recordData.id })
         log.audit({
           title: 'Record Deleted',
           details: `Record ID: ${recordData.id}`
-        });
+        })
       } catch (e) {
-        const errorMsg = translation.get({ collection: 'unusedRecordCleaner', key: 'delete_error' }) || 'Error deleting record.';
-        log.error({ title: errorMsg, details: e.message });
-        throw e;
+        const errorMsg = translation.get({ collection: 'unusedRecordCleaner', key: 'delete_error' }) || 'Error deleting record.'
+        log.error({ title: errorMsg, details: e.message })
+        throw e
       }
     },
 
@@ -112,23 +111,23 @@ define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, 
      * Assertions: An audit log is made upon successful creation.
      * Pass: Audit record is created and logged; Fail: Error is thrown and logged.
      */
-    async createAuditRecord(recordData) {
+    async createAuditRecord (recordData) {
       try {
-        const newAuditRecord = await record.create.promise({ type: 'customrecord_deletion_audit' });
-        await newAuditRecord.setValue.promise({ fieldId: 'custrecord_deleted_record_id', value: recordData.id });
-        await newAuditRecord.setValue.promise({ fieldId: 'custrecord_deleted_record_name', value: recordData.name });
-        const savedId = await newAuditRecord.save.promise();
+        const newAuditRecord = await record.create.promise({ type: 'customrecord_deletion_audit' })
+        await newAuditRecord.setValue.promise({ fieldId: 'custrecord_deleted_record_id', value: recordData.id })
+        await newAuditRecord.setValue.promise({ fieldId: 'custrecord_deleted_record_name', value: recordData.name })
+        const savedId = await newAuditRecord.save.promise()
         log.audit({
           title: 'Audit Record Created',
           details: `Audit Record ID: ${savedId}, Deleted Record ID: ${recordData.id}`
-        });
+        })
       } catch (e) {
-        const errorMsg = translation.get({ collection: 'unusedRecordCleaner', key: 'audit_error' }) || 'Error creating audit record.';
-        log.error({ title: errorMsg, details: e.message });
-        throw e;
+        const errorMsg = translation.get({ collection: 'unusedRecordCleaner', key: 'audit_error' }) || 'Error creating audit record.'
+        log.error({ title: errorMsg, details: e.message })
+        throw e
       }
     }
-  };
+  }
 
   const UnusedRecordView = {
     /**
@@ -141,11 +140,11 @@ define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, 
      * Assertions: Logs an audit message with the 'No Unused Records' title.
      * Pass: Correct audit is logged; Fail: No log message is produced.
      */
-    logNoRecordsFound() {
+    logNoRecordsFound () {
       log.audit({
         title: 'No Unused Records',
         details: 'No unused records found for deletion.'
-      });
+      })
     },
 
     /**
@@ -159,13 +158,13 @@ define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, 
      * Assertions: Logs an audit message with the total deletion count.
      * Pass: The audit message reflects the correct deletion count; Fail: The count is incorrect or not logged.
      */
-    logCompletion(count) {
+    logCompletion (count) {
       log.audit({
         title: 'Unused Record Cleanup Complete',
         details: `Total records deleted: ${count}`
-      });
+      })
     }
-  };
+  }
 
   const UnusedRecordController = {
     /**
@@ -179,23 +178,23 @@ define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, 
      * Assertions: Invokes view logging based on record availability and deletion actions.
      * Pass: The process completes successfully with correct logging; Fail: Any error in deletion or audit creation is thrown.
      */
-    async cleanupUnusedRecords() {
-      let deleteCount = 0;
-      const candidates = await UnusedRecordModel.fetchUnusedRecords();
+    async cleanupUnusedRecords () {
+      let deleteCount = 0
+      const candidates = await UnusedRecordModel.fetchUnusedRecords()
       if (!candidates || candidates.length === 0) {
-        UnusedRecordView.logNoRecordsFound();
-        return;
+        UnusedRecordView.logNoRecordsFound()
+        return
       }
       for (const candidate of candidates) {
-        const hasDeps = await UnusedRecordModel.hasDependencies(candidate);
-        if (hasDeps) continue;
-        await UnusedRecordModel.deleteRecord(candidate);
-        deleteCount++;
-        await UnusedRecordModel.createAuditRecord(candidate);
+        const hasDeps = await UnusedRecordModel.hasDependencies(candidate)
+        if (hasDeps) continue
+        await UnusedRecordModel.deleteRecord(candidate)
+        deleteCount++
+        await UnusedRecordModel.createAuditRecord(candidate)
       }
-      UnusedRecordView.logCompletion(deleteCount);
+      UnusedRecordView.logCompletion(deleteCount)
     }
-  };
+  }
 
   /**
    * Scheduled script entry point for cleaning up unused records.
@@ -209,13 +208,13 @@ define(['N/log', 'N/query', 'N/record', 'N/translation'], function (log, query, 
    * Assertions: Calls the cleanupUnusedRecords method.
    * Pass: Cleanup completes successfully; Fail: Throws an error if any step fails.
    */
-  async function execute(context) {
-    await UnusedRecordController.cleanupUnusedRecords();
+  async function execute (context) {
+    await UnusedRecordController.cleanupUnusedRecords()
   }
 
-  const exportsObj = { execute };
+  const exportsObj = { execute }
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = exportsObj;
+    module.exports = exportsObj
   }
-  return exportsObj;
-});
+  return exportsObj
+})
